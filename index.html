@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIL SMS — Workforce Analytics Dashboard</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f4f5f7;color:#1a1a2e;font-size:14px}
+.db{padding:1.25rem;max-width:1200px;margin:0 auto}
+.top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:10px}
+.top-bar-left{display:flex;flex-direction:column;gap:2px}
+.top-bar-left h2{font-size:15px;font-weight:500;color:#1a1a2e}
+.top-bar-left p{font-size:12px;color:#6b7280}
+.filters{display:flex;gap:8px;flex-wrap:wrap}
+select{font-size:12px;padding:5px 10px;border-radius:8px;border:0.5px solid #d1d5db;background:#fff;color:#1a1a2e;cursor:pointer}
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:1.25rem}
+.card{background:#f9fafb;border-radius:8px;padding:12px 14px}
+.card .lbl{font-size:11px;color:#6b7280;margin-bottom:6px;display:flex;align-items:center;gap:5px}
+.card .lbl i{font-size:13px}
+.card .val{font-size:22px;font-weight:500;color:#1a1a2e;line-height:1}
+.card .sub{font-size:11px;color:#9ca3af;margin-top:4px}
+.tabs{display:flex;gap:0;margin-bottom:1.25rem;border-bottom:0.5px solid #e5e7eb;overflow-x:auto}
+.tab{font-size:12px;padding:7px 16px;cursor:pointer;border:none;background:none;color:#6b7280;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.tab i{font-size:14px}
+.tab.active{color:#185FA5;border-bottom-color:#378ADD;font-weight:500}
+.tab:hover:not(.active){color:#1a1a2e;background:#f9fafb}
+.pane{display:none}.pane.active{display:block}
+.chart-wrap{position:relative;width:100%}
+.tbl-wrap{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{text-align:left;padding:8px 10px;font-weight:500;color:#6b7280;border-bottom:0.5px solid #e5e7eb;font-size:11px;white-space:nowrap;background:#f9fafb}
+.tbl td{padding:7px 10px;border-bottom:0.5px solid #e5e7eb;color:#1a1a2e;font-size:12px}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tbody tr:hover td{background:#f9fafb}
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:500}
+.b-green{background:#EAF3DE;color:#3B6D11}.b-amber{background:#FAEEDA;color:#854F0B}.b-red{background:#FCEBEB;color:#A32D2D}.b-blue{background:#E6F1FB;color:#185FA5}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:1.25rem}
+.section-hd{font-size:11px;font-weight:500;color:#6b7280;margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:6px}
+.section-hd i{font-size:14px}
+.panel{background:#fff;border:0.5px solid #e5e7eb;border-radius:12px;padding:14px}
+.legend-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;font-size:11px;color:#6b7280}
+.legend-row span{display:flex;align-items:center;gap:5px}
+.legend-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.emp-controls{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+input[type=text]{font-size:12px;padding:5px 10px;border-radius:8px;border:0.5px solid #d1d5db;background:#fff;color:#1a1a2e;width:180px;outline:none}
+input[type=text]:focus{border-color:#378ADD;box-shadow:0 0 0 2px rgba(55,138,221,0.15)}
+.delta-pos{color:#A32D2D;font-weight:500}
+.delta-neg{color:#3B6D11;font-weight:500}
+.util-bar{height:4px;border-radius:2px;background:#e5e7eb;margin-top:3px}
+.util-fill{height:4px;border-radius:2px}
+@media(max-width:520px){.row2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="db">
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <h2>Workforce analytics</h2>
+      <p>AIL Steel Melting Shop — all phases &amp; shifts</p>
+    </div>
+    <div class="filters">
+      <select id="phaseFilter" onchange="update()">
+        <option value="all">All phases</option>
+        <option value="Phase-01">Phase 01</option>
+        <option value="Phase-02">Phase 02</option>
+        <option value="Phase-03">Phase 03</option>
+        <option value="Phase-04">Phase 04</option>
+      </select>
+      <select id="shiftFilter" onchange="update()">
+        <option value="all">All shifts</option>
+        <option value="A">Shift A</option>
+        <option value="B">Shift B</option>
+        <option value="C">Shift C</option>
+        <option value="G">General</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="metric-grid" id="metricCards"></div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('overview',this)"><i class="ti ti-layout-dashboard"></i>Overview</button>
+    <button class="tab" onclick="switchTab('role',this)"><i class="ti ti-id-badge"></i>Role analysis</button>
+    <button class="tab" onclick="switchTab('wc',this)"><i class="ti ti-building-factory"></i>Work centre</button>
+    <button class="tab" onclick="switchTab('phase',this)"><i class="ti ti-trending-down"></i>Phase trend</button>
+    <button class="tab" onclick="switchTab('emp',this)"><i class="ti ti-users"></i>Employees</button>
+  </div>
+
+  <div id="overview" class="pane active">
+    <div class="row2">
+      <div class="panel">
+        <div class="section-hd"><i class="ti ti-chart-bar"></i>Headcount by phase</div>
+        <div class="chart-wrap" style="height:180px"><canvas id="c1" role="img" aria-label="Headcount by phase bar chart">P01: 153, P02: 141, P03: 138, P04: 132</canvas></div>
+      </div>
+      <div class="panel">
+        <div class="section-hd"><i class="ti ti-chart-donut"></i>Shift distribution</div>
+        <div class="chart-wrap" style="height:180px"><canvas id="c2" role="img" aria-label="Shift distribution donut chart">Shift A, B, C, General breakdown</canvas></div>
+        <div class="legend-row" id="shiftLegend"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="section-hd"><i class="ti ti-award"></i>Top roles by headcount</div>
+      <div class="chart-wrap" style="height:260px"><canvas id="c3" role="img" aria-label="Top roles by headcount horizontal bar chart">Role headcount breakdown</canvas></div>
+    </div>
+  </div>
+
+  <div id="role" class="pane">
+    <div class="tbl-wrap">
+      <table class="tbl" id="roleTbl">
+        <thead><tr><th>Role</th><th>Headcount</th><th>Avg workload (min)</th><th>Utilisation</th><th>Shifts</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="wc" class="pane">
+    <div class="panel">
+      <div class="section-hd"><i class="ti ti-building-factory-2"></i>Headcount by work centre</div>
+      <div class="chart-wrap" style="height:340px"><canvas id="c4" role="img" aria-label="Work centre headcount horizontal bar chart">Work centre breakdown</canvas></div>
+    </div>
+  </div>
+
+  <div id="phase" class="pane">
+    <div class="panel" style="margin-bottom:12px">
+      <div class="section-hd"><i class="ti ti-arrows-down-up"></i>Headcount trend across phases</div>
+      <div class="chart-wrap" style="height:220px"><canvas id="c5" role="img" aria-label="Phase trend grouped bar chart">Shift breakdown per phase P01–P04</canvas></div>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl" id="phaseTbl">
+        <thead><tr><th>Phase</th><th>Shift A</th><th>Shift B</th><th>Shift C</th><th>General</th><th>Total</th><th>Δ vs P01</th><th>Change</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="emp" class="pane">
+    <div class="emp-controls">
+      <select id="empRole" onchange="update()"><option value="all">All roles</option></select>
+      <input type="text" id="empSearch" placeholder="Search by name…" oninput="update()">
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl" id="empTbl">
+        <thead><tr><th>Name</th><th>Role</th><th>Work centre</th><th>Shift</th><th>Workload (min)</th><th>Util %</th><th>Phase</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const phaseHC={"Phase-01":{A:52,B:51,C:43,G:7,total:153},"Phase-02":{A:48,B:45,C:41,G:7,total:141},"Phase-03":{A:48,B:45,C:41,G:4,total:138},"Phase-04":{A:46,B:43,C:39,G:4,total:132}};
+const ALL_PHASES=["Phase-01","Phase-02","Phase-03","Phase-04"];
+const ALL_SHIFTS=["A","B","C","G"];
+const PALETTE=["#378ADD","#1D9E75","#BA7517","#7F77DD","#E24B4A","#639922","#D4537E","#888780"];
+const SHIFT_COLORS={A:"#378ADD",B:"#1D9E75",C:"#BA7517",G:"#7F77DD"};
+
+const RAW=[
+  ["G","Md. Golam Mortoza","SMS Lead","All",480],
+  ["G","Md. Amir Khan Risan","Furnace Lead","Furnace",480],
+  ["G","Md. Saddam Hossain","Operator","Furnace",480],
+  ["A","Iman hossain","Melter","Furnace-1",460],
+  ["A","Md. Maula","Melter","Furnace-2",460],
+  ["A","Md. Zahidul islam","Melter","Furnace-3",460],
+  ["B","Md. Golam kobir","Melter","Furnace-1",460],
+  ["B","Abu Hayat Md. Shakil","Melter","Furnace-2",460],
+  ["B","Md. Ibrahim","Melter","Furnace-3",460],
+  ["C","Muhammad Shahadat Hossain","Melter","Furnace-1",460],
+  ["C","Md. Torikul Islam","Melter","Furnace-2",460],
+  ["A","Md. Roni","Melter","Furnace-3",460],
+  ["A","Samiul Fakir","First Hand","Furnace-1",459],
+  ["A","Md. Jahir Kha","First Hand","Furnace-2",459],
+  ["A","Md. Momijul Islam","First Hand","Furnace-3",459],
+  ["A","Md. Moynul Hoque","First Hand","Furnace-1",454],
+  ["B","Md. Amir hussen","First Hand","Furnace-1",454],
+  ["B","Mr. Nironjon","First Hand","Furnace-2",454],
+  ["C","Md. Sahaj","First Hand","Furnace-1",454],
+  ["C","Nabiul Islam","First Hand","Furnace-2",454],
+  ["A","Md. Nurul isalm","Bariman","Furnace-1",444],
+  ["A","Md. Asadul islam","Bariman","Furnace-2",444],
+  ["A","Md. Hasibur","Bariman","Furnace-3",444],
+  ["B","Jamal miah","Bariman","Furnace-1",444],
+  ["B","Md. Polash mia","Bariman","Furnace-2",444],
+  ["B","Md. Shohel","Bariman","Furnace-3",444],
+  ["C","Md. Atiqul isalm","Bariman","Furnace-1",444],
+  ["C","Abu Bakkar Siddique","Bariman","Furnace-2",444],
+  ["C","Md. Fotik Mia","Bariman","Furnace-3",444],
+  ["C","Md. Belal B","Bariman","Furnace-2",444],
+  ["A","Md. Kholil","Furnace Helper","Furnace-1",448],
+  ["A","Md. Abdul Karim","Furnace Helper","Furnace-2",448],
+  ["A","Md. Faruk","Furnace Helper","Furnace-3",448],
+  ["B","Saidul islam Shawan","Furnace Helper","Furnace-1",448],
+  ["B","Sree Subas Kisku","Furnace Helper","Furnace-2",448],
+  ["B","Abul Hossan","Furnace Helper","Furnace-3",448],
+  ["B","M.D S.M Akas","Furnace Helper","Furnace-1",448],
+  ["C","Ripon Saren","Furnace Helper","Furnace-2",448],
+  ["C","Md. Nayan","Furnace Helper","Furnace-3",448],
+  ["C","Md. Sajjad","Furnace Helper","Furnace-1",448],
+  ["A","Md. Ratan","Lining Mason","Furnace lining",420],
+  ["A","Md. Hasibul","Lining Mason","Furnace lining",420],
+  ["B","Md. Bahar","Lining Mason","Furnace lining",420],
+  ["C","Md. Rafiqul","Lining Mason","Furnace lining",420],
+  ["A","Md. Zakir","Lining Technician","Furnace lining",440],
+  ["B","Md. Monirul","Lining Technician","Furnace lining",440],
+  ["A","Md. Tarek","Lining Helper","Furnace lining",400],
+  ["A","Md. Shumon","Lining Helper","Furnace lining",400],
+  ["B","Md. Jashim","Lining Helper","Furnace lining",400],
+  ["B","Md. Liton","Lining Helper","Furnace lining",400],
+  ["C","Md. Sumon","Lining Helper","Furnace lining",400],
+  ["C","Md. Ohid","Lining Helper","Furnace lining",400],
+  ["G","Eng. Rafiqul Islam","Engineer-production","CCM",480],
+  ["A","Md. Shamim","Shift Incharge","CCM operation",460],
+  ["B","Md. Jakir","Shift Incharge","CCM operation",460],
+  ["C","Md. Ariful","Shift Incharge","CCM operation",460],
+  ["A","Md. Masum","CCM Lead","CCM",455],
+  ["B","Md. Nasir","CCM Lead","CCM",455],
+  ["C","Md. Robiul","CCM Lead","CCM",455],
+  ["A","Md. Dulal","Mould Operator","CCM operation",440],
+  ["A","Md. Noman","Mould Operator","CCM operation",440],
+  ["A","Md. Kamal","Mould Operator","CCM operation",440],
+  ["B","Md. Jahirul","Mould Operator","CCM operation",440],
+  ["B","Md. Hossain","Mould Operator","CCM operation",440],
+  ["B","Md. Alom","Mould Operator","CCM operation",440],
+  ["C","Md. Belal","Mould Operator","CCM operation",440],
+  ["C","Md. Shahidul","Mould Operator","CCM operation",440],
+  ["C","Md. Jewel","Mould Operator","CCM operation",440],
+  ["A","Md. Azad","Mo. Helper","CCM floor",410],
+  ["A","Md. Shanto","Mo. Helper","CCM floor",410],
+  ["B","Md. Riaz","Mo. Helper","CCM floor",410],
+  ["B","Md. Imran","Mo. Helper","CCM floor",410],
+  ["C","Md. Rakib","Mo. Helper","CCM floor",410],
+  ["C","Md. Shahin","Mo. Helper","CCM floor",410],
+  ["A","Md. Munna","Desk Operator","CCM operation",445],
+  ["B","Md. Rubel","Desk Operator","CCM operation",445],
+  ["C","Md. Badal","Desk Operator","CCM operation",445],
+  ["A","Md. Jitu","Cutterman","Cutterman",430],
+  ["A","Md. Mizan","Cutterman","Cutterman",430],
+  ["B","Md. Sujan","Cutterman","Cutterman",430],
+  ["B","Md. Taijul","Cutterman","Cutterman",430],
+  ["C","Md. Emdad","Cutterman","Cutterman",430],
+  ["C","Md. Ahsan","Cutterman","Cutterman",430],
+  ["A","Md. Masud","Slide Gate Operator","Slide gate",440],
+  ["B","Md. Shafiq","Slide Gate Operator","Slide gate",440],
+  ["C","Md. Pavel","Slide Gate Operator","Slide gate",440],
+  ["A","Md. Rafiq","SG. Helper","Slide gate",400],
+  ["B","Md. Iqbal","SG. Helper","Slide gate",400],
+  ["C","Md. Hasnat","SG. Helper","Slide gate",400],
+  ["A","Md. Alamin","Tundish Mason","Tundish preparation",430],
+  ["B","Md. Yusuf","Tundish Mason","Tundish preparation",430],
+  ["C","Md. Sohel","Tundish Mason","Tundish preparation",430],
+  ["A","Md. Babul","T. Helper","Tundish preparation",400],
+  ["A","Md. Shakil T","T. Helper","Tundish preparation",400],
+  ["B","Md. Minhaj","T. Helper","Tundish preparation",400],
+  ["B","Md. Toton","T. Helper","Tundish preparation",400],
+  ["C","Md. Manik","T. Helper","Tundish preparation",400],
+  ["C","Md. Shohag","T. Helper","Tundish preparation",400],
+  ["A","Md. Kalam","Ladle Mason","Ladle preparation",430],
+  ["B","Md. Joynal","Ladle Mason","Ladle preparation",430],
+  ["C","Md. Hannan","Ladle Mason","Ladle preparation",430],
+  ["A","Md. Naim","L. Helper","Ladle preparation",400],
+  ["A","Md. Farhan","L. Helper","Ladle preparation",400],
+  ["B","Md. Tanvir","L. Helper","Ladle preparation",400],
+  ["B","Md. Emran","L. Helper","Ladle preparation",400],
+  ["C","Md. Moshiur","L. Helper","Ladle preparation",400],
+  ["C","Md. Tamim","L. Helper","Ladle preparation",400],
+  ["A","Md. Rofiq","Crane Operator","CCM crane-1",450],
+  ["A","Md. Lipon","Crane Operator","CCM crane-2",450],
+  ["A","Md. Kaish","Crane Operator","Furnace crane-1",450],
+  ["A","Md. Rasel","Crane Operator","Furnace crane-2",450],
+  ["A","Md. Hasan C","Crane Operator","Hot billet operation",450],
+  ["A","Md. Kamal H","Crane Operator","Furnace crane-3",450],
+  ["A","Md. Ruhul","Crane Operator","Furnace crane-4",450],
+  ["A","Md. Babor","Crane Operator","CCM crane-3",450],
+  ["A","Md. Shafiqul","Crane Operator","CCM crane-4",450],
+  ["A","Md. Tauhid","Crane Operator","Furnace crane-5",450],
+  ["B","Md. Aminul","Crane Operator","CCM crane-1",450],
+  ["B","Md. Suman","Crane Operator","CCM crane-2",450],
+  ["B","Md. Polash","Crane Operator","Furnace crane-1",450],
+  ["B","Md. Jubair","Crane Operator","Furnace crane-2",450],
+  ["B","Md. Subed","Crane Operator","Hot billet operation",450],
+  ["B","Md. Arif","Crane Operator","Furnace crane-3",450],
+  ["B","Md. Jasim","Crane Operator","Furnace crane-4",450],
+  ["B","Md. Rezaul","Crane Operator","CCM crane-3",450],
+  ["B","Md. Nazmul","Crane Operator","CCM crane-4",450],
+  ["B","Md. Mukul","Crane Operator","Furnace crane-5",450],
+  ["C","Md. Jahid","Crane Operator","CCM crane-1",450],
+  ["C","Md. Robel","Crane Operator","Furnace crane-1",450],
+  ["C","Md. Redwan","Crane Operator","Hot billet operation",450],
+  ["C","Md. Nahid","Crane Operator","Furnace crane-3",450],
+  ["C","Md. Mamun","Crane Operator","Furnace crane-4",450],
+  ["C","Md. Rakibul","Crane Operator","CCM crane-3",450],
+  ["C","Md. Shimon","Crane Operator","CCM crane-4",450],
+  ["C","Md. Khairul","Crane Operator","Furnace crane-5",450],
+  ["G","Md. Rashed","Technician","CCM",440],
+  ["G","Md. Anisur","Technician","CCM",440],
+  ["G","Md. Salim","Technician","Furnace",440],
+];
+
+const REMOVED_BY_PHASE={
+  "Phase-02":["Md. Kholil","Md. Abdul Karim","Md. Faruk","Md. Roni","Md. Belal B","Md. Hasibur","Md. Amir Khan Risan","Md. Saddam Hossain","Saidul islam Shawan"],
+  "Phase-03":["Md. Kholil","Md. Abdul Karim","Md. Faruk","Md. Roni","Md. Belal B","Md. Hasibur","Md. Amir Khan Risan","Md. Saddam Hossain","Saidul islam Shawan","Md. Ruhul","Md. Jasim","Md. Mamun","Md. Rashed","Md. Anisur","Md. Salim"],
+  "Phase-04":["Md. Kholil","Md. Abdul Karim","Md. Faruk","Md. Roni","Md. Belal B","Md. Hasibur","Md. Amir Khan Risan","Md. Saddam Hossain","Saidul islam Shawan","Md. Ruhul","Md. Jasim","Md. Mamun","Md. Rashed","Md. Anisur","Md. Salim","Md. Tauhid","Md. Mukul","Md. Khairul","Md. Shafiqul","Md. Nazmul","Md. Shimon","Md. Bahar"]
+};
+
+function getRows(phase,shift){
+  const phases=phase==="all"?ALL_PHASES:[phase];
+  const shifts=shift==="all"?ALL_SHIFTS:[shift];
+  const rows=[];
+  phases.forEach(ph=>{
+    const removed=REMOVED_BY_PHASE[ph]||[];
+    RAW.forEach(r=>{
+      if(!shifts.includes(r[0]))return;
+      if(removed.includes(r[1]))return;
+      rows.push({shift:r[0],name:r[1],role:r[2],wc:r[3],wl:r[4],phase:ph});
+    });
+  });
+  return rows;
+}
+
+function getMetricCounts(phase,shift){
+  const pKeys=phase==="all"?ALL_PHASES:[phase];
+  const sKeys=shift==="all"?ALL_SHIFTS:[shift];
+  const counts={A:0,B:0,C:0,G:0,total:0};
+  pKeys.forEach(p=>{sKeys.forEach(s=>{const v=phaseHC[p][s]||0;counts[s]+=v;counts.total+=v;});});
+  return counts;
+}
+
+function utilBadge(pct){
+  const cls=pct>=95?"b-green":pct>=80?"b-amber":"b-red";
+  const fillColor=pct>=95?"#639922":pct>=80?"#BA7517":"#E24B4A";
+  const bar=`<div class="util-bar"><div class="util-fill" style="width:${Math.min(pct,100)}%;background:${fillColor}"></div></div>`;
+  return `<span class="badge ${cls}">${pct}%</span>${bar}`;
+}
+
+let charts={};
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+function switchTab(id,btn){
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  setTimeout(()=>update(),50);
+}
+
+function uniq(rows){
+  const u={};
+  rows.forEach(r=>{const k=r.name+'|'+r.phase;if(!u[k])u[k]=r;});
+  return Object.values(u);
+}
+
+function update(){
+  const phase=document.getElementById('phaseFilter').value;
+  const shift=document.getElementById('shiftFilter').value;
+  const counts=getMetricCounts(phase,shift);
+  const pKeys=phase==="all"?ALL_PHASES:[phase];
+  const sKeys=shift==="all"?ALL_SHIFTS:[shift];
+
+  const ICONS={A:'ti-sun',B:'ti-moon',C:'ti-stars',G:'ti-briefcase'};
+  let html=`<div class="card"><div class="lbl"><i class="ti ti-users"></i>Total headcount</div><div class="val">${counts.total}</div><div class="sub">${pKeys.length} phase${pKeys.length>1?'s':''}</div></div>`;
+  sKeys.forEach(s=>{
+    const label=s==="G"?"General":"Shift "+s;
+    html+=`<div class="card"><div class="lbl"><i class="ti ${ICONS[s]}"></i>${label}</div><div class="val">${counts[s]}</div><div class="sub">employees</div></div>`;
+  });
+  document.getElementById('metricCards').innerHTML=html;
+
+  const active=document.querySelector('.pane.active').id;
+
+  if(active==='overview'){
+    destroyChart('c1');destroyChart('c2');destroyChart('c3');
+    const phaseLabels=ALL_PHASES.map(p=>p.replace("Phase-","P"));
+    const phaseTotals=ALL_PHASES.map(p=>shift==="all"?phaseHC[p].total:phaseHC[p][shift]||0);
+    charts.c1=new Chart(document.getElementById('c1'),{
+      type:'bar',
+      data:{labels:phaseLabels,datasets:[{label:'Headcount',data:phaseTotals,backgroundColor:['#378ADD','#1D9E75','#BA7517','#7F77DD'],borderRadius:4}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+ctx.parsed.y+' employees'}}},scales:{y:{beginAtZero:false,min:Math.max(0,Math.min(...phaseTotals)-10),grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:11}}},x:{grid:{display:false},ticks:{font:{size:11}}}}}
+    });
+
+    const sColors=sKeys.map(s=>SHIFT_COLORS[s]);
+    const sLabels=sKeys.map(s=>s==="G"?"General":"Shift "+s);
+    const sData=sKeys.map(s=>counts[s]);
+    charts.c2=new Chart(document.getElementById('c2'),{
+      type:'doughnut',
+      data:{labels:sLabels,datasets:[{data:sData,backgroundColor:sColors,hoverOffset:6,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'65%'}
+    });
+    let leg='';
+    sLabels.forEach((l,i)=>{leg+=`<span><span class="legend-dot" style="background:${sColors[i]}"></span>${l} — ${sData[i]}</span>`;});
+    document.getElementById('shiftLegend').innerHTML=leg;
+
+    const rows=getRows(phase,shift);
+    const roleCounts={};
+    uniq(rows).forEach(r=>{roleCounts[r.role]=(roleCounts[r.role]||0)+1;});
+    const sorted=Object.entries(roleCounts).sort((a,b)=>b[1]-a[1]).slice(0,12);
+    destroyChart('c3');
+    charts.c3=new Chart(document.getElementById('c3'),{
+      type:'bar',
+      data:{labels:sorted.map(x=>x[0]),datasets:[{label:'Headcount',data:sorted.map(x=>x[1]),backgroundColor:'#378ADD',borderRadius:3}]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+ctx.parsed.x+' employees'}}},scales:{x:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:11},stepSize:1}},y:{grid:{display:false},ticks:{font:{size:11}}}}}
+    });
+  }
+
+  if(active==='role'){
+    const rows=getRows(phase,shift);
+    const roleMap={};
+    uniq(rows).forEach(r=>{
+      if(!roleMap[r.role])roleMap[r.role]={hc:0,wlSum:0,shifts:new Set()};
+      roleMap[r.role].hc++;
+      roleMap[r.role].wlSum+=r.wl;
+      roleMap[r.role].shifts.add(r.shift);
+    });
+    const tbody=document.querySelector('#roleTbl tbody');
+    tbody.innerHTML='';
+    Object.entries(roleMap).sort((a,b)=>b[1].hc-a[1].hc).forEach(([role,d])=>{
+      const avg=Math.round(d.wlSum/d.hc);
+      const util=Math.round(avg/480*100);
+      const sh=[...d.shifts].sort().map(s=>s==="G"?"Gen":s).join(', ');
+      tbody.innerHTML+=`<tr><td><strong>${role}</strong></td><td>${d.hc}</td><td>${avg}</td><td>${utilBadge(util)}</td><td><span class="badge b-blue">${sh}</span></td></tr>`;
+    });
+  }
+
+  if(active==='wc'){
+    const rows=getRows(phase,shift);
+    const wcMap={};
+    uniq(rows).forEach(r=>{wcMap[r.wc]=(wcMap[r.wc]||0)+1;});
+    const sorted=Object.entries(wcMap).sort((a,b)=>b[1]-a[1]);
+    destroyChart('c4');
+    const h4=Math.max(300,sorted.length*36+60);
+    document.querySelector('#c4').parentElement.style.height=h4+'px';
+    charts.c4=new Chart(document.getElementById('c4'),{
+      type:'bar',
+      data:{labels:sorted.map(x=>x[0]),datasets:[{label:'Headcount',data:sorted.map(x=>x[1]),backgroundColor:sorted.map((_,i)=>PALETTE[i%PALETTE.length]),borderRadius:3}]},
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+ctx.parsed.x+' employees'}}},scales:{x:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:11},stepSize:1}},y:{grid:{display:false},ticks:{font:{size:11}}}}}
+    });
+  }
+
+  if(active==='phase'){
+    destroyChart('c5');
+    const sFilter=shift==="all"?ALL_SHIFTS:[shift];
+    const datasets=sFilter.map(s=>({
+      label:s==="G"?"General":"Shift "+s,
+      data:ALL_PHASES.map(p=>phaseHC[p][s]||0),
+      backgroundColor:SHIFT_COLORS[s],
+      borderRadius:3
+    }));
+    charts.c5=new Chart(document.getElementById('c5'),{
+      type:'bar',
+      data:{labels:ALL_PHASES.map(p=>p.replace("Phase-","P")),datasets},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'top',labels:{font:{size:11},boxWidth:12,padding:12,usePointStyle:true,pointStyle:'rect'}}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,0.05)'},ticks:{font:{size:11}}},x:{grid:{display:false},ticks:{font:{size:11}}}}}
+    });
+    const tbody=document.querySelector('#phaseTbl tbody');
+    tbody.innerHTML='';
+    const base=phaseHC["Phase-01"];
+    ALL_PHASES.forEach(p=>{
+      const d=phaseHC[p];
+      const sFilter2=shift==="all"?ALL_SHIFTS:[shift];
+      const filteredTotal=sFilter2.reduce((s,k)=>s+(d[k]||0),0);
+      const baseFiltered=sFilter2.reduce((s,k)=>s+(base[k]||0),0);
+      const delta=filteredTotal-baseFiltered;
+      const pct=baseFiltered>0?((filteredTotal-baseFiltered)/baseFiltered*100).toFixed(1):"0.0";
+      const deltaTxt=delta===0?'—':`<span class="${delta<0?'delta-neg':'delta-pos'}">${delta>0?'+':''}${delta}</span>`;
+      const pctTxt=delta===0?'—':`<span class="badge ${delta<0?'b-green':'b-red'}">${pct}%</span>`;
+      tbody.innerHTML+=`<tr><td><strong>${p}</strong></td><td>${d.A}</td><td>${d.B}</td><td>${d.C}</td><td>${d.G}</td><td><strong>${d.total}</strong></td><td>${deltaTxt}</td><td>${pctTxt}</td></tr>`;
+    });
+  }
+
+  if(active==='emp'){
+    const rows=getRows(phase,shift);
+    const sel=document.getElementById('empRole');
+    const curVal=sel.value;
+    const roles=[...new Set(rows.map(r=>r.role))].sort();
+    sel.innerHTML='<option value="all">All roles</option>'+roles.map(r=>`<option value="${r}"${r===curVal?' selected':''}>${r}</option>`).join('');
+    const fRole=sel.value;
+    const srch=(document.getElementById('empSearch').value||'').toLowerCase();
+    const emp=uniq(rows).filter(r=>(fRole==='all'||r.role===fRole)&&(srch===''||r.name.toLowerCase().includes(srch)));
+    const tbody=document.querySelector('#empTbl tbody');
+    tbody.innerHTML='';
+    emp.slice(0,80).forEach(r=>{
+      const util=Math.round(r.wl/480*100);
+      tbody.innerHTML+=`<tr>
+        <td><span style="font-weight:500">${r.name}</span></td>
+        <td>${r.role}</td><td>${r.wc}</td>
+        <td><span class="badge b-blue">${r.shift==="G"?"Gen":r.shift}</span></td>
+        <td>${r.wl}</td><td>${utilBadge(util)}</td>
+        <td><span class="badge b-blue">${r.phase.replace('Phase-','P')}</span></td>
+      </tr>`;
+    });
+    if(emp.length>80)tbody.innerHTML+=`<tr><td colspan="7" style="text-align:center;color:#6b7280;font-size:11px;padding:12px">Showing 80 of ${emp.length} — filter by role or name to narrow down.</td></tr>`;
+    if(emp.length===0)tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;color:#6b7280;font-size:11px;padding:16px">No employees match the current filters.</td></tr>`;
+  }
+}
+update();
+</script>
+</body>
+</html>
